@@ -33,24 +33,46 @@ Configure the server using command-line arguments or environment variables:
 
 ---
 
-## 💻 Getting Started
+## 📦 Installation & Setup
 
-### Prerequisites
+You can install and configure the server either automatically using the installation script or manually via Python.
+
+### Option 1: Quick Installation Script (Recommended)
+
+The project includes an `install.sh` script that automatically builds a standalone executable using PyInstaller, installs it to `~/.local/bin/code-generator-mcp`, and configures your target AI coding agent.
+
+1. Run the script and specify your target agent:
+   ```bash
+   chmod +x install.sh
+   ./install.sh <agent_type>
+   ```
+   Supported `<agent_type>` values:
+   - `claude-code` / `agy` (Claude CLI and Claude Desktop)
+   - `codex` (Cursor)
+   - `github-copilot` (VS Code workspace config)
+
+2. (Optional) Customize the endpoint and model in the agent's configuration file or environment variables after installation.
+
+---
+
+### Option 2: Manual Setup via Python
+
+#### Prerequisites
 - Python 3.10+
 - Dependencies installed in virtual environment:
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+  ```bash
+  python -m venv .venv
+  source .venv/bin/activate
+  pip install -r requirements.txt
+  ```
 
-### Running Locally
+#### Running Locally
 To run the MCP server directly over standard input/output (stdio):
 ```bash
 python src/code_generator_mcp/server.py --api-url http://localhost:8008/v1 --model gemma-12b
 ```
 
-### Testing during development
+#### Testing during development
 You can use `mcp dev` (from MCP CLI) to test the server interactively in a development UI:
 ```bash
 mcp dev src/code_generator_mcp/server.py -- --api-url http://localhost:8008/v1 --model gemma-12b
@@ -60,7 +82,7 @@ mcp dev src/code_generator_mcp/server.py -- --api-url http://localhost:8008/v1 -
 
 ## 🔌 Integration Setup
 
-To use this server with your favorite MCP client (like Claude Desktop or Cursor):
+To manually use this server with your favorite MCP client (like Claude Desktop or Cursor):
 
 ### Claude Desktop Configuration
 Open your Claude Desktop config file (usually located at `~/.config/Claude/claude_desktop_config.json` on Linux/macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows) and add the following entry:
