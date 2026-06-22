@@ -158,7 +158,7 @@ AGENTS = {
     "agy": AgentConfig("Antigravity", "json", ["mcpServers", "code-generator-mcp"], _agy_path, install_check_func=_agy_installed)
 }
 
-def update_json_file(file_path: str, key_path: list[str], server_config: dict) -> None:
+def update_json_file(file_path: str, key_path: list[str], server_config: dict = None, remove: bool = False) -> None:
     dir_name = os.path.dirname(file_path)
     if dir_name:
         os.makedirs(dir_name, exist_ok=True)
@@ -175,32 +175,43 @@ def update_json_file(file_path: str, key_path: list[str], server_config: dict) -
             data = json.loads(clean_content)
         except Exception as e:
             sys.stderr.write(f"Error: Existing config file at {file_path} is malformed or has invalid JSON syntax: {e}.\n")
-            sys.stderr.write("Aborting installation to prevent data loss. Please fix the config file syntax and try again.\n")
+            sys.stderr.write("Aborting configuration to prevent data loss. Please fix the config file syntax and try again.\n")
             sys.exit(1)
             
     current = data
     for key in key_path[:-1]:
         if key not in current or not isinstance(current[key], dict):
+            if remove:
+                print(f"Server '{key_path[-1]}' is not configured in {file_path} (missing intermediate path '{key}').")
+                return
             current[key] = {}
         current = current[key]
         
     last_key = key_path[-1]
-    if last_key in current and isinstance(current[last_key], dict):
-        existing_server = current[last_key]
-        if "url" in existing_server or existing_server.get("type") in ("http", "sse"):
-            sys.stderr.write(
-                f"Warning: Existing server '{last_key}' in '{file_path}' is configured as an HTTP/SSE server "
-                f"(url: {existing_server.get('url')}). Overwriting it to a stdio server.\n"
-            )
-        if "env" in existing_server and isinstance(existing_server["env"], dict) and "env" in server_config:
-            merged_env = existing_server["env"].copy()
-            merged_env.update(server_config["env"])
-            server_config["env"] = merged_env
-        if "args" in existing_server and isinstance(existing_server["args"], list) and "args" in server_config:
-            # Preserve existing custom args if they exist
-            server_config["args"] = existing_server["args"]
-            
-    current[last_key] = server_config
+    if remove:
+        if last_key in current:
+            del current[last_key]
+            print(f"Removed '{last_key}' from config: {file_path}")
+        else:
+            print(f"Server '{last_key}' was not configured in config: {file_path}")
+            return
+    else:
+        if last_key in current and isinstance(current[last_key], dict):
+            existing_server = current[last_key]
+            if "url" in existing_server or existing_server.get("type") in ("http", "sse"):
+                sys.stderr.write(
+                    f"Warning: Existing server '{last_key}' in '{file_path}' is configured as an HTTP/SSE server "
+                    f"(url: {existing_server.get('url')}). Overwriting it to a stdio server.\n"
+                )
+            if "env" in existing_server and isinstance(existing_server["env"], dict) and "env" in server_config:
+                merged_env = existing_server["env"].copy()
+                merged_env.update(server_config["env"])
+                server_config["env"] = merged_env
+            if "args" in existing_server and isinstance(existing_server["args"], list) and "args" in server_config:
+                # Preserve existing custom args if they exist
+                server_config["args"] = existing_server["args"]
+                
+        current[last_key] = server_config
     
     if os.path.exists(file_path):
         backup_path = file_path + ".bak"
@@ -214,7 +225,7 @@ def update_json_file(file_path: str, key_path: list[str], server_config: dict) -
     write_file_atomically(file_path, new_json_str)
     print(f"Configured: {file_path}")
 
-def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: dict) -> None:
+def update_codex_toml(file_path: str, server_name: str, command: str = None, env_vars: dict = None, remove: bool = False) -> None:
     import tomlkit
     dir_name = os.path.dirname(file_path)
     if dir_name:
@@ -227,46 +238,57 @@ def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: 
                 doc = tomlkit.parse(f.read())
             except Exception as e:
                 sys.stderr.write(f"Error: Existing Codex config at {file_path} has invalid TOML syntax: {e}.\n")
-                sys.stderr.write("Aborting installation to prevent data loss.\n")
+                sys.stderr.write("Aborting configuration to prevent data loss.\n")
                 sys.exit(1)
                 
     if "mcp_servers" not in doc:
+        if remove:
+            print(f"Server '{server_name}' was not configured in Codex config: {file_path}")
+            return
         doc["mcp_servers"] = tomlkit.table()
         
     mcp_servers = doc["mcp_servers"]
     
-    if server_name in mcp_servers:
-        target_server = mcp_servers[server_name]
+    if remove:
+        if server_name in mcp_servers:
+            del mcp_servers[server_name]
+            print(f"Removed '{server_name}' from Codex config: {file_path}")
+        else:
+            print(f"Server '{server_name}' was not configured in Codex config: {file_path}")
+            return
     else:
-        target_server = tomlkit.table()
-        mcp_servers[server_name] = target_server
-        
-    if target_server:
-        if "url" in target_server or target_server.get("transport") in ("http", "sse"):
-            sys.stderr.write(
-                f"Warning: Existing Codex server '{server_name}' is configured as an HTTP/SSE server "
-                f"(url: {target_server.get('url')}). Overwriting it to a stdio server.\n"
-            )
-            # Remove HTTP specific keys
-            if "url" in target_server:
-                del target_server["url"]
-            if "transport" in target_server:
-                del target_server["transport"]
+        if server_name in mcp_servers:
+            target_server = mcp_servers[server_name]
+        else:
+            target_server = tomlkit.table()
+            mcp_servers[server_name] = target_server
             
-    env_table = tomlkit.table()
-    for k, v in sorted(env_vars.items()):
-        env_table[k] = v
-        
-    if "env" in target_server:
-        existing_env = target_server["env"]
-        for k, v in existing_env.items():
-            if k not in env_table:
-                env_table[k] = v
+        if target_server:
+            if "url" in target_server or target_server.get("transport") in ("http", "sse"):
+                sys.stderr.write(
+                    f"Warning: Existing Codex server '{server_name}' is configured as an HTTP/SSE server "
+                    f"(url: {target_server.get('url')}). Overwriting it to a stdio server.\n"
+                )
+                # Remove HTTP specific keys
+                if "url" in target_server:
+                    del target_server["url"]
+                if "transport" in target_server:
+                    del target_server["transport"]
                 
-    target_server["command"] = command
-    if "args" not in target_server:
-        target_server["args"] = tomlkit.array()
-    target_server["env"] = env_table
+        env_table = tomlkit.table()
+        for k, v in sorted(env_vars.items()):
+            env_table[k] = v
+            
+        if "env" in target_server:
+            existing_env = target_server["env"]
+            for k, v in existing_env.items():
+                if k not in env_table:
+                    env_table[k] = v
+                    
+        target_server["command"] = command
+        if "args" not in target_server:
+            target_server["args"] = tomlkit.array()
+        target_server["env"] = env_table
     
     if os.path.exists(file_path):
         backup_path = file_path + ".bak"
@@ -280,20 +302,23 @@ def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: 
     write_file_atomically(file_path, new_toml_str)
     print(f"Configured Codex (TOML): {file_path}")
 
-def configure_claude_code(exec_path: str, env_vars: dict, scope: str = "global") -> bool:
+def configure_claude_code(exec_path: str = None, env_vars: dict = None, scope: str = "global", remove: bool = False) -> bool:
     import subprocess
     claude_bin = shutil.which("claude")
     if not claude_bin:
         return False
         
-    server_config = {
-        "type": "stdio",
-        "command": exec_path,
-        "args": [],
-        "env": env_vars
-    }
-    
-    cmd = [claude_bin, "mcp", "add-json", "code-generator-mcp", json.dumps(server_config, ensure_ascii=False)]
+    if remove:
+        cmd = [claude_bin, "mcp", "remove", "code-generator-mcp"]
+    else:
+        server_config = {
+            "type": "stdio",
+            "command": exec_path,
+            "args": [],
+            "env": env_vars
+        }
+        cmd = [claude_bin, "mcp", "add-json", "code-generator-mcp", json.dumps(server_config, ensure_ascii=False)]
+        
     if scope and scope != "global":
         cmd.extend(["--scope", scope])
         
@@ -305,7 +330,8 @@ def configure_claude_code(exec_path: str, env_vars: dict, scope: str = "global")
             timeout=30
         )
         if res.returncode == 0:
-            print(f"Successfully configured Claude Code using '{' '.join(cmd)}'.")
+            action = "removed" if remove else "configured"
+            print(f"Successfully {action} Claude Code using '{' '.join(cmd)}'.")
             return True
         else:
             sys.stderr.write(f"Warning: '{' '.join(cmd)}' returned code {res.returncode}. Stderr: {res.stderr}\n")
@@ -318,25 +344,30 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Configure coding agent for MCP server")
     parser.add_argument("agent", help="Target agent type (e.g. cursor, claude-code, codex, etc.)")
-    parser.add_argument("executable_path", help="Path to MCP server executable")
+    parser.add_argument("executable_path", nargs="?", default=None, help="Path to MCP server executable (required unless --remove)")
     parser.add_argument("--scope", default="global", choices=["global", "local"], help="Configuration scope (global or local/workspace)")
+    parser.add_argument("--remove", action="store_true", help="Remove configuration instead of installing/updating")
     
     args = parser.parse_args()
     
     agent_type = args.agent.lower()
     exec_path = args.executable_path
     scope = args.scope
+    remove = args.remove
     
-    if not os.path.exists(exec_path):
-        sys.stderr.write(f"Error: Executable path '{exec_path}' does not exist.\n")
-        sys.exit(1)
-        
-    # Executable check using shutil.which for robust cross-platform validation
-    resolved_exec = shutil.which(exec_path)
-    if not resolved_exec:
-        sys.stderr.write(f"Error: Path '{exec_path}' is not recognized as an executable file.\n")
-        sys.exit(1)
-    exec_path = resolved_exec
+    if not remove:
+        if not exec_path:
+            parser.error("executable_path is required unless --remove is specified")
+        if not os.path.exists(exec_path):
+            sys.stderr.write(f"Error: Executable path '{exec_path}' does not exist.\n")
+            sys.exit(1)
+            
+        # Executable check using shutil.which for robust cross-platform validation
+        resolved_exec = shutil.which(exec_path)
+        if not resolved_exec:
+            sys.stderr.write(f"Error: Path '{exec_path}' is not recognized as an executable file.\n")
+            sys.exit(1)
+        exec_path = resolved_exec
             
     if agent_type not in AGENTS:
         sys.stderr.write(f"Error: Unknown agent type: {agent_type}. Supported agents: {', '.join(sorted(AGENTS.keys()))}\n")
@@ -357,7 +388,7 @@ def main():
     
     # Try CLI helper for Claude Code
     if agent_type == "claude-code":
-        if configure_claude_code(exec_path, env_vars, scope):
+        if configure_claude_code(exec_path, env_vars, scope, remove=remove):
             return
             
     try:
@@ -372,9 +403,9 @@ def main():
         }
         
         if agent.format_type == "json":
-            update_json_file(path, key_path, server_config)
+            update_json_file(path, key_path, server_config, remove=remove)
         elif agent.format_type == "toml":
-            update_codex_toml(path, "code-generator-mcp", exec_path, env_vars)
+            update_codex_toml(path, "code-generator-mcp", exec_path, env_vars, remove=remove)
     except Exception as e:
         sys.stderr.write(f"Error configuring agent: {e}\n")
         sys.exit(1)
