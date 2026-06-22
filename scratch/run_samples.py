@@ -5,7 +5,7 @@ import sys
 
 # Set environment variables for our config system to read
 os.environ["CODE_GEN_API_URL"] = "http://localhost:8008/v1"
-os.environ["CODE_GEN_MODEL"] = "gemma-12b"
+os.environ["CODE_GEN_MODEL"] = "coder-expert"
 
 # Import our FastMCP server instance
 from code_generator_mcp.server import mcp

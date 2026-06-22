@@ -210,7 +210,7 @@ def update_json_file(file_path: str, key_path: list[str], server_config: dict) -
         except Exception as e:
             sys.stderr.write(f"Warning: Failed to create backup at {backup_path}: {e}\n")
             
-    new_json_str = json.dumps(data, indent=2)
+    new_json_str = json.dumps(data, indent=2, ensure_ascii=False)
     write_file_atomically(file_path, new_json_str)
     print(f"Configured: {file_path}")
 
@@ -230,44 +230,43 @@ def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: 
                 sys.stderr.write("Aborting installation to prevent data loss.\n")
                 sys.exit(1)
                 
-    mcp_servers = doc.get("mcp_servers", tomlkit.aot())
+    if "mcp_servers" not in doc:
+        doc["mcp_servers"] = tomlkit.table()
+        
+    mcp_servers = doc["mcp_servers"]
     
-    target_server = None
-    for s in mcp_servers:
-        if s.get("name") == server_name:
-            target_server = s
-            break
-            
+    if server_name in mcp_servers:
+        target_server = mcp_servers[server_name]
+    else:
+        target_server = tomlkit.table()
+        mcp_servers[server_name] = target_server
+        
     if target_server:
         if "url" in target_server or target_server.get("transport") in ("http", "sse"):
             sys.stderr.write(
                 f"Warning: Existing Codex server '{server_name}' is configured as an HTTP/SSE server "
                 f"(url: {target_server.get('url')}). Overwriting it to a stdio server.\n"
             )
+            # Remove HTTP specific keys
+            if "url" in target_server:
+                del target_server["url"]
+            if "transport" in target_server:
+                del target_server["transport"]
             
     env_table = tomlkit.table()
     for k, v in sorted(env_vars.items()):
         env_table[k] = v
         
-    if target_server is not None:
-        if "env" in target_server:
-            existing_env = target_server["env"]
-            for k, v in existing_env.items():
-                if k not in env_table:
-                    env_table[k] = v
-        target_server["command"] = command
-        if "args" not in target_server:
-            target_server["args"] = tomlkit.array()
-        target_server["env"] = env_table
-    else:
-        new_server = tomlkit.table()
-        new_server["name"] = server_name
-        new_server["command"] = command
-        new_server["args"] = tomlkit.array()
-        new_server["env"] = env_table
-        mcp_servers.append(new_server)
-        
-    doc["mcp_servers"] = mcp_servers
+    if "env" in target_server:
+        existing_env = target_server["env"]
+        for k, v in existing_env.items():
+            if k not in env_table:
+                env_table[k] = v
+                
+    target_server["command"] = command
+    if "args" not in target_server:
+        target_server["args"] = tomlkit.array()
+    target_server["env"] = env_table
     
     if os.path.exists(file_path):
         backup_path = file_path + ".bak"
@@ -332,16 +331,12 @@ def main():
         sys.stderr.write(f"Error: Executable path '{exec_path}' does not exist.\n")
         sys.exit(1)
         
-    # Executable check (handling platform difference)
-    if IS_WIN:
-        ext = os.path.splitext(exec_path)[1].lower()
-        pathext = [e.lower() for e in os.environ.get("PATHEXT", "").split(";")]
-        if ext not in pathext:
-            sys.stderr.write(f"Warning: Executable path '{exec_path}' does not have a standard Windows executable extension.\n")
-    else:
-        if not os.access(exec_path, os.X_OK):
-            sys.stderr.write(f"Error: Path '{exec_path}' is not executable. Please verify execution permissions.\n")
-            sys.exit(1)
+    # Executable check using shutil.which for robust cross-platform validation
+    resolved_exec = shutil.which(exec_path)
+    if not resolved_exec:
+        sys.stderr.write(f"Error: Path '{exec_path}' is not recognized as an executable file.\n")
+        sys.exit(1)
+    exec_path = resolved_exec
             
     if agent_type not in AGENTS:
         sys.stderr.write(f"Error: Unknown agent type: {agent_type}. Supported agents: {', '.join(sorted(AGENTS.keys()))}\n")
@@ -353,7 +348,7 @@ def main():
         sys.stderr.write(f"Warning: Coding agent '{agent.name}' installation directory or command was not detected on your system.\n")
         
     api_url = os.environ.get("CODE_GEN_API_URL") or "http://localhost:8008/v1"
-    model = os.environ.get("CODE_GEN_MODEL") or "gemma-12b"
+    model = os.environ.get("CODE_GEN_MODEL") or "coder-expert"
     
     env_vars = {
         "CODE_GEN_API_URL": api_url,

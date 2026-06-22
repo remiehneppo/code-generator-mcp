@@ -1,6 +1,6 @@
 # Code Generator MCP Template Server
 
-An MCP (Model Context Protocol) server built using Python's `FastMCP` framework. It exposes 4 precise, structured code-generation tools backed by prompt templates to generate production-grade, parsed code using local or cloud-based OpenAI-compatible APIs (such as `llama-server`, `qwen-coder`, `gemma-12b`, or OpenAI's API).
+An MCP (Model Context Protocol) server built using Python's `FastMCP` framework. It exposes 4 precise, structured code-generation tools backed by prompt templates to generate production-grade, parsed code using local or cloud-based OpenAI-compatible APIs (such as `llama-server`, `qwen-coder`, `coder-expert`, or OpenAI's API).
 
 ## 🚀 Features
 
@@ -74,13 +74,13 @@ The project includes an `install.sh` script that automatically builds a standalo
 #### Running Locally
 To run the MCP server directly over standard input/output (stdio):
 ```bash
-python src/code_generator_mcp/server.py --api-url http://localhost:8008/v1 --model gemma-12b
+python src/code_generator_mcp/server.py --api-url http://localhost:8008/v1 --model coder-expert
 ```
 
 #### Testing during development
 You can use `mcp dev` (from MCP CLI) to test the server interactively in a development UI:
 ```bash
-mcp dev src/code_generator_mcp/server.py -- --api-url http://localhost:8008/v1 --model gemma-12b
+mcp dev src/code_generator_mcp/server.py -- --api-url http://localhost:8008/v1 --model coder-expert
 ```
 
 ---
@@ -102,7 +102,7 @@ Open your Claude Desktop config file (usually located at `~/.config/Claude/claud
       ],
       "env": {
         "CODE_GEN_API_URL": "http://localhost:8008/v1",
-        "CODE_GEN_MODEL": "gemma-12b"
+        "CODE_GEN_MODEL": "coder-expert"
       }
     }
   }
