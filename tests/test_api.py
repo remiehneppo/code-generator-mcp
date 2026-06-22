@@ -95,3 +95,87 @@ def test_generate_code_api_call():
         config.api_url = original_api_url
         config.model = original_model
         config.api_key = original_api_key
+
+def test_generate_code_auto_fix():
+    from code_generator_mcp.config import config
+    
+    # Configure mock API URL
+    original_api_url = config.api_url
+    config.api_url = "http://mock-api/v1"
+    
+    try:
+        # 1st response has a syntax error: missing closing paren in def statement
+        mock_response_1 = MagicMock()
+        mock_response_1.status_code = 200
+        mock_response_1.json.return_value = {
+            "choices": [{"message": {"content": "def add(a, b:\n    return a + b"}}]
+        }
+        
+        # 2nd response has the fixed code
+        mock_response_2 = MagicMock()
+        mock_response_2.status_code = 200
+        mock_response_2.json.return_value = {
+            "choices": [{"message": {"content": "def add(a, b):\n    return a + b"}}]
+        }
+        
+        with patch("httpx.Client.post", side_effect=[mock_response_1, mock_response_2]) as mock_post:
+            result = generate_code("spec prompt", "python")
+            
+            # Verify the result is the corrected code
+            assert result == "def add(a, b):\n    return a + b"
+            
+            # Verify it called the API twice
+            assert mock_post.call_count == 2
+            
+            # Verify the second call's messages contained the linter error user feedback
+            second_call_payload = mock_post.call_args_list[1][1]["json"]
+            messages = second_call_payload["messages"]
+            assert len(messages) == 4
+            assert messages[2]["role"] == "assistant"
+            assert messages[3]["role"] == "user"
+            assert "Syntax Error" in messages[3]["content"] or "errors" in messages[3]["content"]
+    finally:
+        config.api_url = original_api_url
+
+def test_generate_code_with_tests():
+    from code_generator_mcp.config import config
+    
+    original_api_url = config.api_url
+    config.api_url = "http://mock-api/v1"
+    
+    try:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{
+                "message": {
+                    "content": (
+                        "## Code Implementation\n"
+                        "```python\n"
+                        "def add(a, b):\n"
+                        "    return a + b\n"
+                        "```\n\n"
+                        "## Unit Tests\n"
+                        "```python\n"
+                        "def test_add():\n"
+                        "    assert add(1, 2) == 3\n"
+                        "```"
+                    )
+                }
+            }]
+        }
+        
+        with patch("httpx.Client.post", return_value=mock_response) as mock_post:
+            result = generate_code("spec prompt", "python", generate_test_file=True)
+            
+            assert "## Code Implementation" in result
+            assert "def add(a, b):" in result
+            assert "## Unit Tests" in result
+            assert "def test_add():" in result
+            
+            # Verify prompt has test generation request instructions
+            first_call_payload = mock_post.call_args_list[0][1]["json"]
+            user_msg = first_call_payload["messages"][1]["content"]
+            assert "Co-generation" in user_msg or "matching suite of unit tests" in user_msg
+    finally:
+        config.api_url = original_api_url

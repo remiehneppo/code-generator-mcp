@@ -142,3 +142,87 @@ def test_extract_code_from_response_multiple_blocks():
     )
     result = extract_code_from_response(raw_response)
     assert "merge logic here" in result
+
+def test_extract_code_and_tests_from_response():
+    from code_generator_mcp.utils import extract_code_and_tests_from_response
+    
+    # Test explicit headings
+    response_explicit = (
+        "## Code Implementation\n"
+        "```python\n"
+        "def add(a, b): return a + b\n"
+        "```\n"
+        "## Unit Tests\n"
+        "```python\n"
+        "def test_add(): assert add(1, 2) == 3\n"
+        "```\n"
+    )
+    impl, test = extract_code_and_tests_from_response(response_explicit)
+    assert impl == "def add(a, b): return a + b"
+    assert test == "def test_add(): assert add(1, 2) == 3"
+    
+    # Test fallback multiple blocks
+    response_fallback = (
+        "Here is the code:\n"
+        "```javascript\n"
+        "const x = 1;\n"
+        "```\n"
+        "Here are tests:\n"
+        "```javascript\n"
+        "assert(x === 1);\n"
+        "```\n"
+    )
+    impl, test = extract_code_and_tests_from_response(response_fallback)
+    assert impl == "const x = 1;"
+    assert test == "assert(x === 1);"
+
+def test_validate_code_syntax():
+    from code_generator_mcp.utils import validate_code_syntax
+    
+    # Python valid
+    assert validate_code_syntax("def f():\n    pass\n", "python") is None
+    assert validate_code_syntax("def f():\n    pass\n", "py") is None
+    
+    # Python invalid
+    err = validate_code_syntax("def f(\n    pass\n", "python")
+    assert err is not None
+    assert "SyntaxError" in err or "Syntax Error" in err
+
+def test_detect_test_command(tmp_path):
+    from unittest.mock import patch
+    from code_generator_mcp.utils import detect_test_command
+    import os
+    
+    # Test Rust detection
+    with patch("os.getcwd", return_value=str(tmp_path)), \
+         patch("shutil.which", side_effect=lambda cmd: "/usr/bin/cargo" if cmd == "cargo" else None):
+        (tmp_path / "Cargo.toml").write_text("[package]")
+        cmd, reason = detect_test_command()
+        assert cmd == ["cargo", "test"]
+        assert "Cargo.toml" in reason
+
+    # Clean up files in tmp_path
+    for f in tmp_path.iterdir():
+        if f.is_file():
+            f.unlink()
+
+    # Test Go detection
+    with patch("os.getcwd", return_value=str(tmp_path)), \
+         patch("shutil.which", side_effect=lambda cmd: "/usr/bin/go" if cmd == "go" else None):
+        (tmp_path / "go.mod").write_text("module main")
+        cmd, reason = detect_test_command()
+        assert cmd == ["go", "test", "./..."]
+        assert "Go" in reason
+
+    # Clean up files in tmp_path
+    for f in tmp_path.iterdir():
+        if f.is_file():
+            f.unlink()
+
+    # Test Node detection (package.json)
+    with patch("os.getcwd", return_value=str(tmp_path)), \
+         patch("shutil.which", side_effect=lambda cmd: "/usr/bin/npm" if cmd == "npm" else None):
+        (tmp_path / "package.json").write_text('{"scripts": {"test": "jest"}}')
+        cmd, reason = detect_test_command()
+        assert cmd == ["npm", "test"]
+        assert "package.json" in reason
