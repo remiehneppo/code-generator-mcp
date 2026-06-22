@@ -31,7 +31,12 @@ esac
 echo "Step 1: Preparing virtual environment..."
 if [ ! -d ".venv" ]; then
     echo "Virtual environment .venv not found. Creating one..."
-    python3 -m venv .venv
+    if ! python3 -m venv .venv 2>/dev/null; then
+        echo "Error: Failed to create virtual environment."
+        echo "This is typically caused by a missing 'python3-venv' package."
+        echo "Please install it using: sudo apt update && sudo apt install python3-venv"
+        exit 1
+    fi
 fi
 
 source .venv/bin/activate

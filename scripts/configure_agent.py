@@ -10,12 +10,13 @@ def update_json_file(file_path, key_path, server_config):
     
     # Read existing content or start with empty dict
     data = {}
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-        except Exception as e:
-            sys.stderr.write(f"Warning: Failed to load existing JSON at {file_path}: {e}. Overwriting.\n")
+    try:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        sys.stderr.write(f"Warning: Failed to load existing JSON at {file_path}: {e}. Overwriting.\n")
             
     # Traversal to find the config object where we put the mcpServer
     current = data
