@@ -5,7 +5,8 @@ set -e
 
 # Help / usage
 show_help() {
-    echo "Usage: ./install.sh [claude-desktop|claude-code|cursor|github-copilot|codex|windsurf|zed|agy]"
+    echo "Usage: ./install.sh <agent_type> [global|local]"
+    echo "Supported agent types: [claude-desktop|claude-code|cursor|github-copilot|codex|windsurf|zed|agy]"
     echo ""
     echo "This script builds the MCP server into a standalone binary,"
     echo "copies it to \$HOME/.local/bin/code-generator-mcp, and configures"
@@ -13,17 +14,27 @@ show_help() {
     exit 1
 }
 
-if [ "$#" -ne 1 ]; then
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
     show_help
 fi
 
 AGENT=$1
+SCOPE=${2:-global}
 
 case "$AGENT" in
     claude-desktop|claude-code|cursor|github-copilot|codex|windsurf|zed|agy)
         ;;
     *)
         echo "Error: Invalid agent type '$AGENT'."
+        show_help
+        ;;
+esac
+
+case "$SCOPE" in
+    global|local)
+        ;;
+    *)
+        echo "Error: Invalid scope '$SCOPE'. Must be 'global' or 'local'."
         show_help
         ;;
 esac
@@ -59,12 +70,12 @@ mkdir -p "$HOME/.local/bin"
 cp dist/code-generator-mcp "$HOME/.local/bin/code-generator-mcp"
 chmod +x "$HOME/.local/bin/code-generator-mcp"
 
-echo "Step 5: Configuring agent '$AGENT'..."
-python scripts/configure_agent.py "$AGENT" "$HOME/.local/bin/code-generator-mcp"
+echo "Step 5: Configuring agent '$AGENT' (Scope: $SCOPE)..."
+python scripts/configure_agent.py "$AGENT" "$HOME/.local/bin/code-generator-mcp" --scope "$SCOPE"
 
 echo ""
 echo "=========================================================="
 echo "Installation and configuration complete!"
 echo "Binary installed at: $HOME/.local/bin/code-generator-mcp"
-echo "Agent configured: $AGENT"
+echo "Agent configured: $AGENT (Scope: $SCOPE)"
 echo "=========================================================="
