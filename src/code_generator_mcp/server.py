@@ -107,6 +107,11 @@ def generate_standard_function(
 ) -> str:
     """
     Generate code for a standard function spec (Template 1) using coder expert model.
+    
+    IMPORTANT: All parameters (such as 'task', 'description', 'constraints', 'edge_cases', etc.) 
+    MUST be provided in English. If the user's prompt or request is in Vietnamese or another language, 
+    the calling agent must automatically translate the text of these parameter values into English 
+    before invoking this tool.
     """
     prompt = render_standard_function(
         task=task,
@@ -135,6 +140,11 @@ def generate_codebase_context(
 ) -> str:
     """
     Generate code for a function with codebase context (Template 2) using coder expert model.
+    
+    IMPORTANT: All parameters (such as 'task', 'description', 'constraints', etc.) 
+    MUST be provided in English. If the user's prompt or request is in Vietnamese or another language, 
+    the calling agent must automatically translate the text of these parameter values into English 
+    before invoking this tool.
     """
     prompt = render_codebase_context(
         task=task,
@@ -160,6 +170,11 @@ def generate_bugfix_refactor(
 ) -> str:
     """
     Generate fixed or refactored code (Template 3) using coder expert model.
+    
+    IMPORTANT: All parameters (such as 'task', 'problem', 'expected_behavior', 'constraints', etc.) 
+    MUST be provided in English. If the user's prompt or request is in Vietnamese or another language, 
+    the calling agent must automatically translate the text of these parameter values into English 
+    before invoking this tool.
     """
     prompt = render_bugfix_refactor(
         language=language,
@@ -186,6 +201,11 @@ def generate_multi_function_module(
 ) -> str:
     """
     Generate code for a multi-function module (Template 4) using coder expert model.
+    
+    IMPORTANT: All parameters (such as 'task', 'module_purpose', 'context', 'functions' list with its 
+    descriptions/constraints, etc.) MUST be provided in English. If the user's prompt or request is 
+    in Vietnamese or another language, the calling agent must automatically translate the text of 
+    these parameter values into English before invoking this tool.
     """
     prompt = render_multi_function_module(
         task=task,
