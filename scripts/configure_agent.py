@@ -187,6 +187,11 @@ def update_json_file(file_path: str, key_path: list[str], server_config: dict) -
     last_key = key_path[-1]
     if last_key in current and isinstance(current[last_key], dict):
         existing_server = current[last_key]
+        if "url" in existing_server or existing_server.get("type") in ("http", "sse"):
+            sys.stderr.write(
+                f"Warning: Existing server '{last_key}' in '{file_path}' is configured as an HTTP/SSE server "
+                f"(url: {existing_server.get('url')}). Overwriting it to a stdio server.\n"
+            )
         if "env" in existing_server and isinstance(existing_server["env"], dict) and "env" in server_config:
             merged_env = existing_server["env"].copy()
             merged_env.update(server_config["env"])
@@ -210,129 +215,60 @@ def update_json_file(file_path: str, key_path: list[str], server_config: dict) -
     print(f"Configured: {file_path}")
 
 def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: dict) -> None:
+    import tomlkit
     dir_name = os.path.dirname(file_path)
     if dir_name:
         os.makedirs(dir_name, exist_ok=True)
         
-    lines = []
+    doc = tomlkit.document()
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            
-    blocks = []
-    current_block = None
-    unrelated_before = []
+            try:
+                doc = tomlkit.parse(f.read())
+            except Exception as e:
+                sys.stderr.write(f"Error: Existing Codex config at {file_path} has invalid TOML syntax: {e}.\n")
+                sys.stderr.write("Aborting installation to prevent data loss.\n")
+                sys.exit(1)
+                
+    mcp_servers = doc.get("mcp_servers", tomlkit.aot())
     
-    for line in lines:
-        if line.strip().startswith("[[mcp_servers]]"):
-            if current_block:
-                blocks.append(current_block)
-            current_block = {"lines": [line], "name": None}
-        else:
-            if current_block:
-                current_block["lines"].append(line)
-            else:
-                unrelated_before.append(line)
-    if current_block:
-        blocks.append(current_block)
-        
-    for b in blocks:
-        for line in b["lines"]:
-            stripped = line.strip()
-            if stripped.startswith("name"):
-                parts = stripped.split("=", 1)
-                if len(parts) == 2:
-                    b["name"] = parts[1].strip().strip('"').strip("'")
-                    
-    target_block = None
-    for b in blocks:
-        if b["name"] == server_name:
-            target_block = b
+    target_server = None
+    for s in mcp_servers:
+        if s.get("name") == server_name:
+            target_server = s
             break
             
-    if target_block:
-        b_lines = target_block["lines"]
-        new_b_lines = []
-        
-        env_section_started = False
-        existing_env = {}
-        other_lines = []
-        
-        i = 0
-        while i < len(b_lines):
-            line = b_lines[i]
-            stripped = line.strip()
+    if target_server:
+        if "url" in target_server or target_server.get("transport") in ("http", "sse"):
+            sys.stderr.write(
+                f"Warning: Existing Codex server '{server_name}' is configured as an HTTP/SSE server "
+                f"(url: {target_server.get('url')}). Overwriting it to a stdio server.\n"
+            )
             
-            if stripped.startswith("[[mcp_servers]]"):
-                i += 1
-                continue
-                
-            if stripped.startswith("[mcp_servers.env]"):
-                env_section_started = True
-                i += 1
-                while i < len(b_lines):
-                    next_line = b_lines[i]
-                    next_stripped = next_line.strip()
-                    if next_stripped.startswith("[") or next_stripped.startswith("name") or next_stripped.startswith("command") or next_stripped.startswith("args"):
-                        break
-                    if next_stripped and "=" in next_stripped and not next_stripped.startswith("#"):
-                        k, v = next_stripped.split("=", 1)
-                        existing_env[k.strip()] = v.strip().strip('"').strip("'")
-                    i += 1
-                continue
-                
-            if stripped.startswith("name"):
-                i += 1
-                continue
-            if stripped.startswith("command"):
-                i += 1
-                continue
-            if stripped.startswith("args"):
-                i += 1
-                continue
-                
-            other_lines.append(line)
-            i += 1
-            
-        merged_env = existing_env.copy()
-        merged_env.update(env_vars)
+    env_table = tomlkit.table()
+    for k, v in sorted(env_vars.items()):
+        env_table[k] = v
         
-        # Write root attributes of the server first
-        new_b_lines.append("[[mcp_servers]]\n")
-        new_b_lines.append(f'name = "{server_name}"\n')
-        new_b_lines.append(f'command = "{command}"\n')
-        new_b_lines.append("args = []\n")
-        
-        # Append other custom root attributes (timeout, transport, etc.) preserving original root context
-        for line in other_lines:
-            if line.strip():
-                new_b_lines.append(line)
-                
-        # Append the env subtable at the very end of the block so it doesn't consume other attributes
-        new_b_lines.append("[mcp_servers.env]\n")
-        for k, v in sorted(merged_env.items()):
-            new_b_lines.append(f'{k} = "{v}"\n')
-        new_b_lines.append("\n")
-        
-        target_block["lines"] = new_b_lines
+    if target_server is not None:
+        if "env" in target_server:
+            existing_env = target_server["env"]
+            for k, v in existing_env.items():
+                if k not in env_table:
+                    env_table[k] = v
+        target_server["command"] = command
+        if "args" not in target_server:
+            target_server["args"] = tomlkit.array()
+        target_server["env"] = env_table
     else:
-        new_b_lines = [
-            "[[mcp_servers]]\n",
-            f'name = "{server_name}"\n',
-            f'command = "{command}"\n',
-            "args = []\n",
-            "[mcp_servers.env]\n"
-        ]
-        for k, v in sorted(env_vars.items()):
-            new_b_lines.append(f'{k} = "{v}"\n')
-        new_b_lines.append("\n")
-        blocks.append({"lines": new_b_lines, "name": server_name})
+        new_server = tomlkit.table()
+        new_server["name"] = server_name
+        new_server["command"] = command
+        new_server["args"] = tomlkit.array()
+        new_server["env"] = env_table
+        mcp_servers.append(new_server)
         
-    final_lines = []
-    final_lines.extend(unrelated_before)
-    for b in blocks:
-        final_lines.extend(b["lines"])
-        
+    doc["mcp_servers"] = mcp_servers
+    
     if os.path.exists(file_path):
         backup_path = file_path + ".bak"
         try:
@@ -341,7 +277,8 @@ def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: 
         except Exception as e:
             sys.stderr.write(f"Warning: Failed to create backup at {backup_path}: {e}\n")
             
-    write_file_atomically(file_path, "".join(final_lines))
+    new_toml_str = tomlkit.dumps(doc)
+    write_file_atomically(file_path, new_toml_str)
     print(f"Configured Codex (TOML): {file_path}")
 
 def configure_claude_code(exec_path: str, env_vars: dict, scope: str = "global") -> bool:
@@ -357,7 +294,7 @@ def configure_claude_code(exec_path: str, env_vars: dict, scope: str = "global")
         "env": env_vars
     }
     
-    cmd = [claude_bin, "mcp", "add-json", "code-generator-mcp", json.dumps(server_config)]
+    cmd = [claude_bin, "mcp", "add-json", "code-generator-mcp", json.dumps(server_config, ensure_ascii=False)]
     if scope and scope != "global":
         cmd.extend(["--scope", scope])
         
@@ -366,7 +303,7 @@ def configure_claude_code(exec_path: str, env_vars: dict, scope: str = "global")
             cmd,
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=30
         )
         if res.returncode == 0:
             print(f"Successfully configured Claude Code using '{' '.join(cmd)}'.")
