@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.agents/
+src/code_generator_mcp.egg-info/
+dist/
+build/
+scratch/debug_api.py
+scratch/debug_stream.py
+scratch/test_raw_output.py
+scratch/test_reasoning.py
+scratch/test_execution_report.json

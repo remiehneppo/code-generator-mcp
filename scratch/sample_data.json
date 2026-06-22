@@ -1,0 +1,89 @@
+{
+  "generate_standard_function": {
+    "task": "Merge overlapping intervals in a list of tuples.",
+    "language": "python",
+    "signature": "def merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:",
+    "description": "Input: list of start/end integer tuples, unsorted.\nOutput: list of merged overlapping/adjacent intervals, sorted by start time.",
+    "test_cases": [
+      "assert merge_intervals([(1, 3), (2, 6), (8, 10)]) == [(1, 6), (8, 10)]",
+      "assert merge_intervals([]) == []",
+      "assert merge_intervals([(1, 4), (4, 5)]) == [(1, 5)]"
+    ],
+    "constraints": [
+      "0 <= len(intervals) <= 10^5",
+      "0 <= start <= end <= 10^9",
+      "O(n log n) time complexity"
+    ],
+    "edge_cases": [
+      "Empty input list",
+      "Single interval",
+      "All intervals identical",
+      "Touch-only overlaps (e.g. [1,4] and [4,5])"
+    ],
+    "dependencies_allowed": ["stdlib only"],
+    "context": null,
+    "integration_note": null
+  },
+  "generate_codebase_context": {
+    "task": "Implement a helper to check if a user is an administrator and active.",
+    "language": "python",
+    "existing_code": "from pydantic import BaseModel\n\nclass User(BaseModel):\n    id: str\n    role: str\n    is_active: bool",
+    "signature": "def is_active_admin(user: User) -> bool:",
+    "description": "Checks if the provided User object has role == 'admin' and is_active is True.",
+    "test_cases": [
+      "admin = User(id='1', role='admin', is_active=True)\nassert is_active_admin(admin) == True",
+      "user = User(id='2', role='user', is_active=True)\nassert is_active_admin(user) == False"
+    ],
+    "interacts_with": "The Pydantic BaseModel class `User`",
+    "constraints": [
+      "Do not import external packages outside of pydantic"
+    ]
+  },
+  "generate_bugfix_refactor": {
+    "language": "python",
+    "current_code": "def binary_search(arr, target):\n    low, high = 0, len(arr) - 1\n    while low <= high:\n        mid = (low + high) // 2\n        if arr[mid] == target:\n            return mid\n        elif arr[mid] < target:\n            low = mid\n        else:\n            high = mid\n    return -1",
+    "problem": "Infinite loop occurs when the target is not in the array or when mid does not increment correctly (e.g. low = mid instead of low = mid + 1).",
+    "expected_behavior": "Should return the index of the target in O(log n) time, or -1 if target is not found, without entering an infinite loop.",
+    "test_cases": [
+      "assert binary_search([1, 2, 3, 4, 5], 3) == 2",
+      "assert binary_search([1, 2, 3, 4, 5], 6) == -1",
+      "assert binary_search([1, 3, 5, 7], 4) == -1"
+    ],
+    "task": "Fix the boundary indices updates inside the while loop.",
+    "constraints": [
+      "Keep same function signature",
+      "Run in O(log n) time"
+    ]
+  },
+  "generate_multi_function_module": {
+    "task": "Create a math utilities module.",
+    "module_purpose": "Provides calculations for Greatest Common Divisor (GCD) and Least Common Multiple (LCM).",
+    "language": "python",
+    "functions": [
+      {
+        "name": "gcd",
+        "signature": "def gcd(a: int, b: int) -> int:",
+        "description": "Calculates the greatest common divisor of two integers using the Euclidean algorithm.",
+        "constraints": ["Must handle zero and negative inputs (take absolute values)"],
+        "depends_on": null
+      },
+      {
+        "name": "lcm",
+        "signature": "def lcm(a: int, b: int) -> int:",
+        "description": "Calculates the least common multiple of two integers using the relation: lcm(a, b) = abs(a*b) / gcd(a, b).",
+        "constraints": ["Must handle zero input (lcm with 0 is 0)"],
+        "depends_on": "gcd"
+      }
+    ],
+    "test_cases": [
+      "assert gcd(48, 18) == 6",
+      "assert gcd(0, 5) == 5",
+      "assert lcm(12, 18) == 36",
+      "assert lcm(0, 5) == 0"
+    ],
+    "shared_types": null,
+    "dependencies": ["math"],
+    "export_format": "single file python module",
+    "context": null
+  }
+}
