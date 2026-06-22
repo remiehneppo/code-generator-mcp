@@ -46,10 +46,15 @@ The project includes an `install.sh` script that automatically builds a standalo
    chmod +x install.sh
    ./install.sh <agent_type>
    ```
-   Supported `<agent_type>` values:
-   - `claude-code` / `agy` (Claude CLI and Claude Desktop)
-   - `codex` (Cursor)
-   - `github-copilot` (VS Code workspace config)
+    Supported `<agent_type>` values:
+    - `claude-desktop` (Claude Desktop global configuration)
+    - `claude-code` (Claude CLI global configuration at `~/.claude.json`)
+    - `cursor` (Cursor editor global config at `~/.cursor/mcp.json`)
+    - `codex` (Codex agent global config at `~/.codex/config.toml`)
+    - `github-copilot` (VS Code workspace-specific config at `.vscode/mcp.json`)
+    - `windsurf` (Windsurf IDE configuration at `~/.codeium/windsurf/mcp_config.json`)
+    - `zed` (Zed editor config at `~/.config/zed/settings.json`)
+    - `agy` (Antigravity settings config at `~/.gemini/settings.json`)
 
 2. (Optional) Customize the endpoint and model in the agent's configuration file or environment variables after installation.
 

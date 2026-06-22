@@ -5,7 +5,7 @@ set -e
 
 # Help / usage
 show_help() {
-    echo "Usage: ./install.sh [codex|github-copilot|agy|claude-code]"
+    echo "Usage: ./install.sh [claude-desktop|claude-code|cursor|github-copilot|codex|windsurf|zed|agy]"
     echo ""
     echo "This script builds the MCP server into a standalone binary,"
     echo "copies it to \$HOME/.local/bin/code-generator-mcp, and configures"
@@ -20,7 +20,7 @@ fi
 AGENT=$1
 
 case "$AGENT" in
-    codex|github-copilot|agy|claude-code)
+    claude-desktop|claude-code|cursor|github-copilot|codex|windsurf|zed|agy)
         ;;
     *)
         echo "Error: Invalid agent type '$AGENT'."
@@ -60,7 +60,7 @@ cp dist/code-generator-mcp "$HOME/.local/bin/code-generator-mcp"
 chmod +x "$HOME/.local/bin/code-generator-mcp"
 
 echo "Step 5: Configuring agent '$AGENT'..."
-python3 scripts/configure_agent.py "$AGENT" "$HOME/.local/bin/code-generator-mcp"
+python scripts/configure_agent.py "$AGENT" "$HOME/.local/bin/code-generator-mcp"
 
 echo ""
 echo "=========================================================="
