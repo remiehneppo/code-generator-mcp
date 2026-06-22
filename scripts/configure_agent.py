@@ -254,7 +254,6 @@ def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: 
         b_lines = target_block["lines"]
         new_b_lines = []
         
-        keys = {}
         env_section_started = False
         existing_env = {}
         other_lines = []
@@ -298,15 +297,18 @@ def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: 
         merged_env = existing_env.copy()
         merged_env.update(env_vars)
         
+        # Write root attributes of the server first
         new_b_lines.append("[[mcp_servers]]\n")
         new_b_lines.append(f'name = "{server_name}"\n')
         new_b_lines.append(f'command = "{command}"\n')
         new_b_lines.append("args = []\n")
         
+        # Append other custom root attributes (timeout, transport, etc.) preserving original root context
         for line in other_lines:
             if line.strip():
                 new_b_lines.append(line)
                 
+        # Append the env subtable at the very end of the block so it doesn't consume other attributes
         new_b_lines.append("[mcp_servers.env]\n")
         for k, v in sorted(merged_env.items()):
             new_b_lines.append(f'{k} = "{v}"\n')
@@ -342,32 +344,37 @@ def update_codex_toml(file_path: str, server_name: str, command: str, env_vars: 
     write_file_atomically(file_path, "".join(final_lines))
     print(f"Configured Codex (TOML): {file_path}")
 
-def configure_claude_code(exec_path: str, env_vars: dict) -> bool:
+def configure_claude_code(exec_path: str, env_vars: dict, scope: str = "global") -> bool:
     import subprocess
     claude_bin = shutil.which("claude")
     if not claude_bin:
         return False
         
     server_config = {
+        "type": "stdio",
         "command": exec_path,
         "args": [],
         "env": env_vars
     }
     
+    cmd = [claude_bin, "mcp", "add-json", "code-generator-mcp", json.dumps(server_config)]
+    if scope and scope != "global":
+        cmd.extend(["--scope", scope])
+        
     try:
         res = subprocess.run(
-            [claude_bin, "mcp", "add-json", json.dumps(server_config)],
+            cmd,
             capture_output=True,
             text=True,
             timeout=10
         )
         if res.returncode == 0:
-            print("Successfully configured Claude Code using 'claude mcp add-json'.")
+            print(f"Successfully configured Claude Code using '{' '.join(cmd)}'.")
             return True
         else:
-            sys.stderr.write(f"Warning: 'claude mcp add-json' returned code {res.returncode}. Stderr: {res.stderr}\n")
+            sys.stderr.write(f"Warning: '{' '.join(cmd)}' returned code {res.returncode}. Stderr: {res.stderr}\n")
     except Exception as e:
-        sys.stderr.write(f"Warning: Failed to run 'claude mcp add-json': {e}\n")
+        sys.stderr.write(f"Warning: Failed to run '{' '.join(cmd)}': {e}\n")
         
     return False
 
@@ -416,9 +423,9 @@ def main():
         "CODE_GEN_MODEL": model
     }
     
-    # Try CLI helper for Claude Code if global/default
-    if agent_type == "claude-code" and scope == "global":
-        if configure_claude_code(exec_path, env_vars):
+    # Try CLI helper for Claude Code
+    if agent_type == "claude-code":
+        if configure_claude_code(exec_path, env_vars, scope):
             return
             
     try:
@@ -426,6 +433,7 @@ def main():
         key_path = agent.key_path
         
         server_config = {
+            "type": "stdio",
             "command": exec_path,
             "args": [],
             "env": env_vars
